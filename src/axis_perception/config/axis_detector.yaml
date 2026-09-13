@@ -1,0 +1,35 @@
+axis_detector:
+  ros__parameters:
+    color_topic: /camera/color/image_raw
+    depth_topic: /camera/aligned_depth_to_color/image_raw
+    depth_info_topic: /camera/aligned_depth_to_color/camera_info
+    target_frame: base_link
+    use_tf: true
+    axis_pose_topic: /axis_detection/pose
+    axis_debug_topic: /axis_detection/debug
+    axis_status_topic: /axis_detection/status
+    queue_size: 10
+    synchronize_slop: 0.10
+    publish_rate_hz: 5.0
+    lock_after_confirmations: 5
+    max_center_jitter_m: 0.008
+    max_top_height_jitter_m: 0.015
+
+    # Plane and axis geometry. The axis is 150 mm high and its center is
+    # constrained to a 150 x 150 mm region on the right side of the table.
+    depth_scale: 0.001
+    workspace_min_x_m: -0.10
+    workspace_max_x_m: 0.10
+    workspace_min_y_m: -0.10
+    workspace_max_y_m: 0.10
+    plane_inlier_threshold_m: 0.006
+    min_axis_height_m: 0.105
+    max_axis_height_m: 0.185
+    min_top_points: 60
+    max_top_depth_m: 0.012
+    cylinder_radius_m: 0.015
+    cylinder_radius_tolerance_m: 0.008
+    min_circularity: 0.65
+    min_top_inlier_points: 80
+    top_radius_quantile: 0.95
+    top_plane_tolerance_m: 0.008
