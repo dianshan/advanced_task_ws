@@ -78,6 +78,17 @@ ros2 run rqt_image_view rqt_image_view /axis_detection/debug
 
 ## 构建与运行
 
+`advanced_assembly` 依赖 `Dexterous-Hand` 提供的 `lbot_arm_interfaces`。构建进阶工作空间前，先让当前 shell 找到该接口包；以下命令假设 `advanced_task_ws`、`Dexterous-Hand`、`orbbec_ws` 和 `linkerbot_ws` 位于同一父目录：
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ../Dexterous-Hand/install/setup.bash
+colcon build --packages-select advanced_assembly axis_perception --symlink-install
+source install/setup.bash
+```
+
+如果 `Dexterous-Hand/install` 未构建，请在 `Dexterous-Hand` 中先执行 `colcon build --packages-select lbot_arm_interfaces`。
+
 在仓库根目录执行：
 
 ```bash
@@ -170,3 +181,96 @@ ros2 run tf2_ros tf2_echo base_link camera_color_optical_frame
 本包只做感知，不发送机械臂运动命令。真实装配任务应通过任务层状态机消费
 `/axis_detection/pose`，并保持运动执行开关默认关闭。首次联调时应使用低速、小幅度
 动作，并确认急停可用。
+
+
+## 进阶任务：四螺母穿轴
+
+`advanced_assembly` 将基础任务的螺母识别和左手抓取逻辑迁移到本工作空间，并扩展为四颗目标：
+
+| ID | 标签 | 装配顺序 | 区分方式 |
+| --- | --- | --- | --- |
+| 1 | `m45_silver` | 1 | M45 尺寸 + 高灰度 |
+| 2 | `m45_black` | 2 | M45 尺寸 + 低灰度 |
+| 3 | `m33` | 3 | 尺寸区间 |
+| 4 | `m27` | 4 | 尺寸区间 |
+
+识别节点迁移了基础任务的黑框检测、内边框 ROI、自适应阈值、black-hat、轮廓几何校验、大块轮廓 watershed 分割和透视尺寸校正；同时取消基础任务的三颗上限，改为四颗候选，并用轮廓灰度区分两个 M45。RGB-D 定位和 TF 转换与基础任务相同，输出到 `base_link`。
+
+### 感知调试
+
+```bash
+# 终端 1：外部相机驱动与 base_link -> camera TF
+# 终端 2：只启动四螺母与立柱识别
+ros2 launch advanced_assembly advanced_task.launch.py
+ros2 topic echo /advanced_nut_sequence
+ros2 topic echo /axis_detection/status
+```
+
+调试图像话题：
+
+- `/advanced_nut_detection/debug`
+- `/axis_detection/debug`
+
+四颗螺母需要在 3 秒窗口内连续稳定 3 帧。全流程模式由控制器在每颗开始和释放完成后调用序列事件服务；每完成一颗后，节点期望剩余 3、2、1 颗重新稳定，不会因为短暂漏检而自动把下一颗标记完成。手工调试时也可以直接调用：
+
+```bash
+ros2 service call /advanced_nut_sequence/event/start std_srvs/srv/Trigger {}
+ros2 service call /advanced_nut_sequence/event/complete std_srvs/srv/Trigger {}
+ros2 service call /advanced_nut_sequence/event/retry std_srvs/srv/Trigger {}
+ros2 service call /advanced_nut_sequence/event/reset std_srvs/srv/Trigger {}
+```
+
+### 单颗螺母调试
+
+先填写 `src/advanced_assembly/config/advanced_task.yaml` 中的现场参数：
+
+- `middle_position`：人工测量的中转 TCP 位置 `base_link [x,y,z]`；
+- `left_enter_route` / `left_home_route`：左臂示教关节路线；
+- `right_enter_route` / `right_home_route`：右臂示教关节路线；
+- `left_grasp_rpy` / `right_grasp_rpy`：实测 Arm_Tip RPY；
+- `left_tcp_offset` / `right_tcp_offset`：Arm_Tip 到抓取 TCP 的工具系偏移；
+- `hand_*`：O6 手参数；
+- 关节限位和速度。
+
+目标螺母、中转位和轴上位置都按抓取 TCP 计算，控制器再使用与基础任务相同的旋转公式把它们转换为驱动接口需要的 Arm_Tip 位置。`left_tcp_offset` 可从 `linkerbot_ws/config/control/nut_task.yaml` 的实测 O6 值开始，右手偏移必须另行测量。
+
+立柱上方参数全部独立可调：
+
+- `axis_above_height`：相对识别柱顶的上方接近高度，默认 80 mm；
+- `axis_descend_height`：穿轴下降终点，相对识别柱顶默认 20 mm；
+- `axis_release_lift_height`：松手后撤离高度，默认 100 mm。
+
+无运动配置检查：
+
+```bash
+ros2 launch advanced_assembly advanced_task.launch.py \
+  run_task:=true execute_task:=false task_mode:=validate
+```
+
+执行指定单颗（示例为 M45 银色，`target_id` 依次为 1、2、3、4）：
+
+```bash
+ros2 launch advanced_assembly advanced_task.launch.py \
+  run_task:=true execute_task:=true task_mode:=single target_id:=1
+```
+
+单颗流程为：等待立柱和当前目标 → 左臂进入 → 左手按基础任务方式抓取 → 提升并放到中转位 → 左臂回位 → 右臂进入 → 右手从中转位抓取 → 移到轴上方 → 下降 → 松手 → 提升 → 右臂回位。
+
+### 全流程调试
+
+```bash
+ros2 launch advanced_assembly advanced_task.launch.py \
+  run_task:=true execute_task:=true task_mode:=full
+```
+
+全流程复用同一个 `run_single()` 代码路径，按 ID 1→2→3→4 依次执行。每颗开始时发送 `start`，右手释放并回位后发送 `complete`，检测节点随后按剩余 3、2、1 颗重新稳定分类。真实运动前必须把配置中的六个校准开关全部改为 `true`；这些开关和 `execute_task` 默认均为 `false`。
+
+任务状态：
+
+```bash
+ros2 topic echo /advanced_assembly/status
+```
+
+### 安全限制
+
+右手轴上方的三个高度参数只做终点几何计算，当前任务层不做碰撞规划、连续路径 IK 校验和抓取成功率视觉确认。首次实机调试应使用低速，确认左右臂工作空间无交叉风险，并保持急停可用。运动异常时控制器会向双手发送张开命令并分别请求左/右臂急停；无法通信或强制终止时无法保证命令送达。

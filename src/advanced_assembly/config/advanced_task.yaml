@@ -1,0 +1,142 @@
+/**:
+  ros__parameters:
+    # Safety interlock. Real motion is impossible until this and every
+    # calibration flag below are changed deliberately.
+    execute_task: false
+    # validate | single | full
+    task_mode: validate
+    # 1=M45 silver, 2=M45 black, 3=M33, 4=M27. Used only by task_mode:=single.
+    target_id: 1
+    robot_namespace: /robot1
+    base_frame: base_link
+
+    vision_calibrated: false
+    left_route_calibrated: false
+    right_route_calibrated: false
+    hand_calibrated: false
+    axis_calibrated: false
+    middle_position_calibrated: false
+
+    joint_limit_margin_rad: 0.05
+    joint_speed: 0.08
+    joint_acceleration: 0.08
+    cartesian_speed: 0.03
+    cartesian_acceleration: 0.03
+    service_timeout_s: 30.0
+    grip_settle_s: 1.0
+    vision_wait_timeout_s: 30.0
+    axis_wait_timeout_s: 30.0
+
+    # Replace all seven-value joint arrays with taught values. Enter routes run
+    # in listed order; home routes run in reverse order.
+    left_joint_min: [-2.91, -0.07, -2.72, -2.05, -2.69, -1.59, -1.59]
+    left_joint_max: [2.91, 3.20, 2.69, 2.05, 2.69, 1.59, 1.59]
+    right_joint_min: [-2.91, -3.20, -2.69, -2.05, -2.69, -1.59, -1.59]
+    right_joint_max: [2.91, 0.07, 2.69, 2.05, 2.69, 1.59, 1.59]
+    left_enter_route:
+      names: []
+    left_home_route:
+      names: []
+    right_enter_route:
+      names: []
+    right_home_route:
+      names: []
+
+    # Human-taught handover position in base_link, metres. Set the calibrated
+    # flag only after this coordinate has been measured.
+    middle_position: [0.0, 0.0, 0.0]
+    middle_lift_height: 0.080
+
+    # Axis target heights are offsets from the perceived top of the fixed post.
+    # They are deliberately independent and can be tuned while debugging.
+    axis_above_height: 0.080
+    axis_descend_height: 0.020
+    axis_release_lift_height: 0.100
+
+    # Replace with measured Arm_Tip RPY values in radians.  Target XYZ below is
+    # interpreted as the grasp/palm TCP; the controller converts it to Arm_Tip.
+    left_grasp_rpy: [0.0, 0.0, 0.0]
+    right_grasp_rpy: [0.0, 0.0, 0.0]
+    # Arm_Tip -> TCP vector in the tool frame.  The left values can start from
+    # the measured linkerbot_ws O6 calibration; the right hand must be measured.
+    left_tcp_offset: [0.0, 0.0, 0.0]
+    right_tcp_offset: [0.0, 0.0, 0.0]
+
+    # O6 order: [thumb_yaw, thumb_pitch, index, middle, ring, pinky].
+    hand_open: [255, 40, 255, 255, 255, 255]
+    hand_ready: [240, 30, 180, 180, 180, 180]
+    hand_closed_m45: [0, 30, 0, 0, 0, 0]
+    hand_closed_m33: [0, 30, 0, 0, 0, 0]
+    hand_closed_m27: [0, 30, 0, 0, 0, 0]
+    hand_speed: 40
+    hand_force: 30
+
+    sequence_topic: /advanced_nut_sequence
+    sequence_start_service: /advanced_nut_sequence/event/start
+    sequence_complete_service: /advanced_nut_sequence/event/complete
+    axis_pose_topic: /axis_detection/pose
+    status_topic: /advanced_assembly/status
+
+advanced_nut_detector:
+  ros__parameters:
+    color_topic: /camera/color/image_raw
+    depth_topic: /camera/aligned_depth_to_color/image_raw
+    camera_info_topic: /camera/aligned_depth_to_color/camera_info
+    target_frame: base_link
+    use_tf: true
+    detection_topic: /advanced_nut_detections
+    sequence_topic: /advanced_nut_sequence
+    sequence_start_service: /advanced_nut_sequence/event/start
+    sequence_complete_service: /advanced_nut_sequence/event/complete
+    sequence_retry_service: /advanced_nut_sequence/event/retry
+    sequence_reset_service: /advanced_nut_sequence/event/reset
+    sequence_status_topic: /advanced_nut_sequence/status
+    debug_image_topic: /advanced_nut_detection/debug
+    publish_rate_hz: 5.0
+    frame_hold_s: 8.0
+    depth_scale: 0.001
+    min_nut_clearance_m: 0.003
+    depth_min_m: 0.15
+    depth_max_m: 5.0
+    max_image_age_s: 0.5
+    max_depth_age_s: 0.1
+    synchronize_slop: 0.10
+    queue_size: 10
+
+    # 20 cm source black frame and advanced four-nut detector settings.
+    frame_size_m: 0.200
+    black_v_max: 190
+    debug_black_frame: true
+    min_frame_area_ratio: 0.01
+    max_frame_area_ratio: 0.10
+    frame_inner_scale: 1.0
+    min_nut_radius_px: 5.0
+    max_nut_radius_px: 40.0
+    min_nut_area_px: 50.0
+    max_nut_area_px: 100000.0
+    adaptive_block_size: 31
+    adaptive_c: 8.0
+    blackhat_kernel_size: 31
+    blackhat_threshold: 25.0
+    nut_mask_open_kernel_size: 3
+    nut_mask_close_kernel_size: 3
+    min_nut_solidity: 0.45
+    min_nut_circularity: 0.25
+    min_nut_aspect_ratio: 0.30
+    # Equal-size M45 candidates are split by median gray; tune under field light.
+    silver_gray_min: 120.0
+    silver_black_margin: 15.0
+    m45_min_size_m: 0.045
+    m45_max_size_m: 0.060
+    m33_min_size_m: 0.0325
+    m33_max_size_m: 0.045
+    m27_min_size_m: 0.025
+    m27_max_size_m: 0.0325
+    duplicate_center_factor: 0.55
+
+    # Confirm four consistent observations within a three-second window.
+    sequence_stable_frames: 3
+    sequence_confirmation_window_s: 3.0
+    sequence_max_center_shift_px: 40.0
+    sequence_max_radius_change_ratio: 0.20
+    sequence_max_gap_s: 1.0
